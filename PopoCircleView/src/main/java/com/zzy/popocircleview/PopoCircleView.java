@@ -108,6 +108,12 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
         borderPaint.setStrokeWidth(strokeWidth);
         borderPaint.setColor(mBorderColor);
 
+
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+
         mDrawable = getDrawable();
 
         if (mDrawable != null){
@@ -129,10 +135,6 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
         }else {
             Log.d(TAG, "init:Drawable is null");
         }
-    }
-
-    @Override
-    protected void onDraw(Canvas canvas) {
 
         Log.d(TAG, "onDraw: radius:"+mRadius);
         //画背景
