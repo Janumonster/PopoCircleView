@@ -142,7 +142,7 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
 
         //画图片
         if (mDrawable != null){
-            if (drawSize <= 2 * mRadius){
+            if (drawSize < 2 * mRadius){
                 canvas.drawBitmap(mBitmap,centerX-drawWidth/2,centerY-drawHeight/2,imgPaint);
             }else {
                 canvas.drawCircle(centerX,centerY,mRadius,imgPaint);
