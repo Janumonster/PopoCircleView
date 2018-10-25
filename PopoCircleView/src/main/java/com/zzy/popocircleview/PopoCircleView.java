@@ -166,6 +166,8 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
         centerY = height/2;
         Log.d(TAG, "onMeasure: centerX:"+centerX+"  centerY:"+centerY);
         int size = (int) (2*mRadius);
+
+        
         ViewGroup.LayoutParams layoutParams = getLayoutParams();
         layoutParams.width = size;
         layoutParams.height = size;
