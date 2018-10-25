@@ -134,6 +134,7 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
     @Override
     protected void onDraw(Canvas canvas) {
 
+        Log.d(TAG, "onDraw: radius:"+mRadius);
         //画背景
         canvas.drawCircle(centerX,centerY,mRadius,bgPaint);
 
@@ -156,27 +157,21 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
+        super.onMeasure(widthMeasureSpec,heightMeasureSpec);
         int width = MeasureSpec.getSize(widthMeasureSpec);
         int height = MeasureSpec.getSize(heightMeasureSpec);
         Log.d(TAG, "onMeasure: width:"+width+"  height:"+height);
 
-        int left = getLeft();
-        int top = getTop();
-        Log.d(TAG, "onMeasure: left:"+left+"  top:"+top);
-
-        centerX = left + width/2;
-        centerY = top + height/2;
+        centerX = width/2;
+        centerY = height/2;
         Log.d(TAG, "onMeasure: centerX:"+centerX+"  centerY:"+centerY);
 
-        int size = (int) (mRadius*2);
+        int size = (int) (2*mRadius);
 
         ViewGroup.LayoutParams layoutParams = getLayoutParams();
-        layoutParams.width = size+strokeWidth;
-        layoutParams.height = size+strokeWidth;
+        layoutParams.width = size;
+        layoutParams.height = size;
         setLayoutParams(layoutParams);
-
     }
 
     public float getmRadius() {
