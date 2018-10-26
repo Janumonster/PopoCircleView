@@ -6,17 +6,15 @@
     android:layout_height="match_parent">
 
     <com.zzy.popocircleview.PopoCircleView
-        android:layout_width="100dp"
-        android:layout_height="100dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        android:src="@drawable/ic_launcher_background"
-        app:popo_border_width="10"
-        app:popo_background_color="#a9a9a9"
-        app:popo_border_color="#000"
-        app:popo_radius="100"
-        android:background="#ffdfdf"/>
+        android:src="@drawable/testpic"
+        app:popo_border_width="10dp"
+        app:popo_background_color="#ef8a8a"
+        app:popo_border_color="#b78686" />
 
 </android.support.constraint.ConstraintLayout>

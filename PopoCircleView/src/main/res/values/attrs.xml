@@ -3,10 +3,10 @@
 
     <declare-styleable name="PopoCircleView">
 
-        <attr name="popo_radius" format="integer"/>
         <attr name="popo_background_color" format="color"/>
         <attr name="popo_border_color" format="color"/>
-        <attr name="popo_border_width" format="integer"/>
+        <attr name="popo_border_width" format="dimension"/>
+        <attr name="popo_border_overlay" format="boolean"/>
 
     </declare-styleable>
 

@@ -7,16 +7,24 @@ import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Outline;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
+import android.os.Build;
+import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.ViewGroup;
+import android.view.View;
+import android.view.ViewOutlineProvider;
 
 /**
- *
+ * 学习作品来自 https://github.com/hdodenhof/CircleImageView 为了更好的学习自定义控件
  * Description:显示圆形图片，对较大的图片进行缩放，小图直接显示，以圆心为准绘制，可以设置边框，可设置背景颜色和边框颜色
  * Create at 2018年10月25日11:30:18
  * Author：Janumonster@Foxmail.com
@@ -28,159 +36,270 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
 
     private static final String TAG = "Popo";
 
+    private static final int DEFULT_BORDER_WIDTH = 0;
+    private static final int DEFULT_BORDER_COLOR = Color.TRANSPARENT;
+    private static final int DEFULT_BACKGROUND_COLOR = Color.TRANSPARENT;
+
     //三支画笔
     private Paint bgPaint = new Paint();
     private Paint imgPaint = new Paint();
     private Paint borderPaint = new Paint();
-    //图片中心点
-    private int centerX;
-    private int centerY;
+
+    //图片和边框显示区域
+    private RectF mDrawableRect = new RectF();
+    private RectF mBorderRect = new RectF();
     //图片半径
-    private float mRadius = 100f;
+    private float mDrawableRadius;
+    private float mBorderRadius;
     //默认背景颜色
-    private int mBackgroundColor = Color.TRANSPARENT;
+    private int mBackgroundColor = DEFULT_BACKGROUND_COLOR;
     //默认边框颜色
-    private int mBorderColor = Color.WHITE;
+    private int mBorderColor = DEFULT_BORDER_COLOR;
     //边框宽度
-    private int strokeWidth = 0;
+    private int mBorderWidth = DEFULT_BORDER_WIDTH;
     //图片相关数据
-    private int drawWidth;
-    private int drawHeight;
-    private int drawSize;
-
+    private int mBitmapWidth;
+    private int mBitmapHeight;
     //图片
-    private Drawable mDrawable;
     private Bitmap mBitmap;
+    private BitmapShader mBitmapShader;
 
-    private Context mContext;
-    private AttributeSet mAttributeSet;
+    private Matrix mMatrix = new Matrix();
+
+    private boolean mBorderOverlay;
+    private boolean isReady;
+    private boolean isPending;
 
     public PopoCircleView(Context context) {
         super(context);
-        mContext = context;
+
         init();
     }
 
     public PopoCircleView(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        mContext = context;
-        mAttributeSet = attrs;
+        super(context, attrs,0);
+
+        TypedArray typedArray = context.obtainStyledAttributes(attrs,R.styleable.PopoCircleView);
+
+        mBorderWidth = typedArray.getDimensionPixelSize(R.styleable.PopoCircleView_popo_border_width,0);
+        mBorderColor = typedArray.getColor(R.styleable.PopoCircleView_popo_border_color,Color.TRANSPARENT);
+        mBackgroundColor = typedArray.getColor(R.styleable.PopoCircleView_popo_background_color,Color.TRANSPARENT);
+        mBorderOverlay = typedArray.getBoolean(R.styleable.PopoCircleView_popo_border_overlay,false);
+
+        Log.d(TAG, "PopoCircleView: mBorderWidth:"+mBorderWidth);
+
+        typedArray.recycle();
+
         init();
     }
 
     public PopoCircleView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        mContext = context;
-        mAttributeSet = attrs;
-        init();
+
     }
 
     private void init() {
-        if (mAttributeSet != null){
-            TypedArray ta = mContext.obtainStyledAttributes(mAttributeSet,R.styleable.PopoCircleView);
-            int count = ta.getIndexCount();
-            for (int i = 0 ;i < count;i ++){
-                int itemId = ta.getIndex(i);
-                if (itemId == R.styleable.PopoCircleView_popo_radius) {
-                    mRadius = ta.getInt(itemId, 0);
-                } else if (itemId == R.styleable.PopoCircleView_popo_border_width) {
-                    strokeWidth = ta.getInt(itemId, 0);
-                } else if (itemId == R.styleable.PopoCircleView_popo_background_color) {
-                    mBackgroundColor = ta.getColor(itemId, 0);
-                } else if (itemId == R.styleable.PopoCircleView_popo_border_color) {
-                    mBorderColor = ta.getColor(itemId, 0);
+        super.setScaleType(ScaleType.CENTER_CROP);
+        isReady = true;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    Rect bounds = new Rect();
+                    mBorderRect.roundOut(bounds);
+                    outline.setRoundRect(bounds,bounds.width()/2.0f);
                 }
-            }
-            ta.recycle();
+            });
         }
 
-        bgPaint.setAntiAlias(true);
-        bgPaint.setStyle(Paint.Style.FILL);
-        bgPaint.setStrokeWidth(strokeWidth);
-        bgPaint.setColor(mBackgroundColor);
-
-        imgPaint.setAntiAlias(true);
-        imgPaint.setStyle(Paint.Style.FILL);
-        imgPaint.setStrokeWidth(strokeWidth);
-
-        borderPaint.setAntiAlias(true);
-        borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(strokeWidth);
-        borderPaint.setColor(mBorderColor);
-
-
+        if (isPending){
+            updatePaint();
+            isPending = false;
+        }
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
 
-        mDrawable = getDrawable();
-
-        if (mDrawable != null){
-            BitmapDrawable bitmapDrawable = (BitmapDrawable) mDrawable;
-            mBitmap = bitmapDrawable.getBitmap();
-
-            drawWidth = mBitmap.getWidth();
-            drawHeight = mBitmap.getHeight();
-
-            drawSize = Math.max(drawWidth,drawHeight);
-
-            Matrix matrix = new Matrix();
-            matrix.setScale(2*mRadius/drawWidth,2*mRadius/drawHeight);
-
-            Bitmap bitmap1 = Bitmap.createBitmap(mBitmap,0,0,drawWidth,drawHeight,matrix,true);
-
-            Shader shader = new BitmapShader(bitmap1,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
-            imgPaint.setShader(shader);
-        }else {
-            Log.d(TAG, "init:Drawable is null");
+        if (mBitmap == null){
+            return;
         }
 
-        Log.d(TAG, "onDraw: radius:"+mRadius);
-        //画背景
-        canvas.drawCircle(centerX,centerY,mRadius,bgPaint);
-
-        //画图片
-        if (mDrawable != null){
-            if (drawSize < 2 * mRadius){
-                canvas.drawBitmap(mBitmap,centerX-drawWidth/2,centerY-drawHeight/2,imgPaint);
-            }else {
-                canvas.drawCircle(centerX,centerY,mRadius,imgPaint);
-            }
-        }else {
-            Log.d(TAG, "onDraw: Drawable is null");
+        if (mBackgroundColor != Color.TRANSPARENT){
+            canvas.drawCircle(mDrawableRect.centerX(),mDrawableRect.centerY(), mDrawableRadius,bgPaint);
         }
 
-        //画边框
-        canvas.drawCircle(centerX,centerY,mRadius-strokeWidth/2,borderPaint);
+        canvas.drawCircle(mDrawableRect.centerX(),mDrawableRect.centerY(), mDrawableRadius,imgPaint);
+        Log.d(TAG, "onDraw: draw img");
+        if (mBorderWidth > 0){
+            Log.d(TAG, "onDraw: draw border");
+
+            canvas.drawCircle(mBorderRect.centerX(),mBorderRect.centerY(), mBorderRadius,borderPaint);
+        }
+
+    }
+
+    private Bitmap getBitmapFromDrawable(Drawable drawable){
+        if (drawable == null){
+            return null;
+        }
+
+        if (drawable instanceof BitmapDrawable){
+            return ((BitmapDrawable)drawable).getBitmap();
+        }
+
+        Bitmap bitmap;
+
+        if (drawable instanceof ColorDrawable){
+            bitmap = Bitmap.createBitmap(2,2,Bitmap.Config.ARGB_8888);
+        }else {
+            bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(),drawable.getIntrinsicHeight(),Bitmap.Config.ARGB_8888);
+        }
+
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0,0,canvas.getWidth(),canvas.getHeight());
+        drawable.draw(canvas);
+        return bitmap;
+    }
+
+    /**
+     * 该方法获取控件可用控件的大小，并且你比较晚调用，可以获取到实际值
+     * 且你每次调用之后都会有一个重绘请求，所以可以更新画面
+     * @return
+     */
+    private RectF calculateBounds(){
+        //通过这种方法来获取控件的宽高，我本人之前是在onMeasure中去获取，并且设置了固定的半径，不好处理，这种方法就很好处理了
+        int availableWidth = getWidth() - getPaddingLeft() - getPaddingRight();
+        int availableHeight = getHeight() - getPaddingTop() - getPaddingBottom();
+
+        int sideLength = Math.min(availableHeight,availableWidth);
+
+        int left = getPaddingLeft()+(availableWidth-sideLength)/2;
+        int top = getPaddingTop()+(availableHeight-sideLength)/2;
+
+        return new RectF(left,top,left+sideLength,top+sideLength);
+    }
+
+    /**
+     * 按图片窄边的缩放比例缩放，并结合imageview的scaletype属性设置，画出中间部分画面
+     */
+    private void updateMatrix(){
+        float scale;
+        //dx，dy用于调整缩放后的位置，不然图像将被画在左上角
+        float dx = 0;
+        float dy = 0;
+        //清空设置
+        mMatrix.set(null);
+
+        if (mBitmapWidth * mDrawableRect.height() > mBitmapHeight * mDrawableRect.width()){
+            scale = mDrawableRect.height()/(float) mBitmapHeight;
+            dx = (mDrawableRect.width() - mBitmapWidth * scale)*0.5f;
+        }else {
+            scale = mDrawableRect.width() / (float) mBitmapWidth;
+            dy = (mDrawableRect.height() - mBitmapHeight * scale) * 0.5f;
+        }
+
+        mMatrix.setScale(scale,scale);
+        mMatrix.postTranslate(dx+0.5f+mDrawableRect.left,dy+0.5f+mDrawableRect.top);
+
+        mBitmapShader.setLocalMatrix(mMatrix);
+    }
+
+    private void updatePaint(){
+
+        if (!isReady){
+            isPending = true;
+            return;
+        }
 
 
+        if (getWidth() == 0 || getHeight() == 0){
+            return;
+        }
+
+        if (mBitmap == null){
+            return;
+        }
+
+        mBitmapShader = new BitmapShader(mBitmap,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
+
+        bgPaint.setAntiAlias(true);
+        bgPaint.setStyle(Paint.Style.FILL);
+        bgPaint.setColor(mBackgroundColor);
+
+        imgPaint.setAntiAlias(true);
+        imgPaint.setShader(mBitmapShader);
+
+        borderPaint.setAntiAlias(true);
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(mBorderWidth);
+        borderPaint.setColor(mBorderColor);
+
+        mBitmapWidth = mBitmap.getWidth();
+        mBitmapHeight = mBitmap.getHeight();
+
+        //获取控件的宽高，只要尺寸改变就要重新调用
+        mBorderRect.set(calculateBounds());
+        mBorderRadius = Math.min((mBorderRect.width() - mBorderWidth)/2.0f,(mBorderRect.hashCode() - mBorderWidth)/2.0f);
+        Log.d(TAG, "updatePaint: mBorderRadius:"+mBorderRadius);
+        mDrawableRect.set(mBorderRect);
+        if (!mBorderOverlay && mBorderWidth > 0){
+            mDrawableRect.inset(mBorderWidth - 1.0f,mBorderWidth - 1.0f);
+        }
+        mDrawableRadius = Math.min(mDrawableRect.width()/2.0f,mDrawableRect.height()/2.0f);
+        Log.d(TAG, "updatePaint: mDrawableRadius:"+mDrawableRadius);
+
+        updateMatrix();
+        invalidate();
+    }
+
+
+    private void initializeBitmap(){
+        mBitmap = getBitmapFromDrawable(getDrawable());
+        updatePaint();
     }
 
     @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec,heightMeasureSpec);
-        int width = MeasureSpec.getSize(widthMeasureSpec);
-        int height = MeasureSpec.getSize(heightMeasureSpec);
-        Log.d(TAG, "onMeasure: width:"+width+"  height:"+height);
-
-        centerX = width/2;
-        centerY = height/2;
-        Log.d(TAG, "onMeasure: centerX:"+centerX+"  centerY:"+centerY);
-        int size = (int) (2*mRadius);
-
-        ViewGroup.LayoutParams layoutParams = getLayoutParams();
-        layoutParams.width = size;
-        layoutParams.height = size;
-        setLayoutParams(layoutParams);
+    public void setImageResource(int resId) {
+        super.setImageResource(resId);
+        initializeBitmap();
     }
 
-    public float getmRadius() {
-        return mRadius;
+    @Override
+    public void setImageDrawable(@Nullable Drawable drawable) {
+        super.setImageDrawable(drawable);
+        initializeBitmap();
     }
 
-    public void setmRadius(float mRadius) {
-        this.mRadius = mRadius;
+    @Override
+    public void setImageBitmap(Bitmap bm) {
+        super.setImageBitmap(bm);
+        initializeBitmap();
+    }
+
+    @Override
+    public void setImageURI(@Nullable Uri uri) {
+        super.setImageURI(uri);
+        initializeBitmap();
+    }
+
+    @Override
+    public void setPadding(int left, int top, int right, int bottom) {
+        super.setPadding(left, top, right, bottom);
+        updatePaint();
+    }
+
+    @Override
+    public void setPaddingRelative(int start, int top, int end, int bottom) {
+        super.setPaddingRelative(start, top, end, bottom);
+        updatePaint();
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        updatePaint();
     }
 
     public int getmBackgroundColor() {
@@ -188,6 +307,9 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
     }
 
     public void setmBackgroundColor(int mBackgroundColor) {
+        if (this.mBackgroundColor == mBackgroundColor){
+            return;
+        }
         this.mBackgroundColor = mBackgroundColor;
     }
 
@@ -196,22 +318,33 @@ public class PopoCircleView extends android.support.v7.widget.AppCompatImageView
     }
 
     public void setmBorderColor(int mBorderColor) {
+        if (this.mBorderColor == mBorderColor){
+            return;
+        }
         this.mBorderColor = mBorderColor;
     }
 
-    public int getStrokeWidth() {
-        return strokeWidth;
+    public int getmBorderWidth() {
+        return mBorderWidth;
     }
 
-    public void setStrokeWidth(int strokeWidth) {
-        this.strokeWidth = strokeWidth;
+    public void setmBorderWidth(int mBorderWidth) {
+        if (this.mBorderWidth == mBorderWidth){
+            return;
+        }
+        this.mBorderWidth = mBorderWidth;
+        updatePaint();
     }
 
-    public Drawable getmDrawable() {
-        return mDrawable;
+    public boolean ismBorderOverlay() {
+        return mBorderOverlay;
     }
 
-    public Bitmap getmBitmap() {
-        return mBitmap;
+    public void setmBorderOverlay(boolean mBorderOverlay) {
+        if (this.mBorderOverlay == mBorderOverlay){
+            return;
+        }
+        this.mBorderOverlay = mBorderOverlay;
+        updatePaint();
     }
 }
